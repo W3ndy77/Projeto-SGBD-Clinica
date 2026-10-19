@@ -1,6 +1,6 @@
 # Testes realizados — Etapa 2
 
-Este documento registra os testes realizados de consulta parametrizada, integridade, transação e concorrência. As evidências estão na pasta `evidencias/`.
+Este documento reúne os testes, verificações e evidências realizados pela equipe durante a Etapa 2 do projeto da Clínica Médica. As evidências estão na pasta `evidencias/`.
 
 ## B1 — Consulta parametrizada por médico e período
 
@@ -20,6 +20,192 @@ Os valores representam a soma dos valores registrados nas consultas, não pagame
 A consulta foi executada no Workbench com filtro de período e medicamento opcional. Ela relaciona `Medicamento`, `Prescricao` e `Consulta`, contando prescrições e pacientes distintos. O período considera a data da consulta associada à prescrição.
 
 Foram testadas duas seleções: todos os medicamentos, com o parâmetro de medicamento igual a `NULL`, e um medicamento específico. A equipe confirmou que as contagens desse medicamento permaneceram iguais nas duas consultas. Este registro se refere ao teste SQL.
+
+## B2 - Camada de Acesso a Dados
+
+## Objetivo
+
+Nesta etapa, foi analisada a camada de acesso ao banco de dados da aplicação.
+
+Foram analisados os seguintes pontos:
+    - Utilização de consultas parametrizadas;
+    - Tratamento de entradas que poderiam causar injeção de SQL;
+    - Proteção contra comandos não autorizados;
+    - Armazenamento das credenciais fora do código-fonte;
+    - Ausência de senhas reais no repositório.
+
+
+## Verificação das consultas
+
+Foi feita uma revisão nos repositories para verificar se os dados recebidos dos formulários eram colocados diretamente nas consultas. Durante essa revisão, foram localizadas algumas concatenações entre partes do SQL. Após a análise, verificou-se que elas utilizavam somente trechos fixos definidos no código, como filtros e ordenações. Não foram encontrados valores digitados pelos usuários sendo inseridos diretamente no texto das consultas. Também não foram encontradas chamadas que montassem comandos SQL utilizando métodos considerados inseguros, como createStatement ou formatação de strings para inserir dados do usuário.
+
+### Resultado
+
+A revisão indicou que os valores recebidos da aplicação são enviados separadamente para o banco. Dessa forma, nomes, identificadores, CPFs e outros dados informados nos formulários não alteram a estrutura das consultas.
+
+### Evidência
+
+
+![Conferência dos repositorios](evidencias/b2-busca-repositories1.png)
+
+
+![Conferência dos repositories](evidencias/b2-busca-repositories2.png)
+
+
+![Conferência dos repositories](evidencias/b2-busca-repositories3.png)
+
+
+## Preparação do teste
+
+Os testes foram realizados no cadastro de especialidades, utilizando o campo de nome. Essa funcionalidade foi escolhida porque permite que o usuário informe um texto que posteriormente é enviado ao banco. Para verificar uma possível tentativa de exclusão de dados, foi utilizada uma tabela de apoio criada somente para o experimento. Dessa maneira, nenhuma tabela principal do sistema foi colocada em risco.
+
+### Evidência
+
+
+![Preparação do ambiente](evidencias/b2-preparacao-teste.png)
+
+
+## Teste de alteração da lógica
+
+Entrada utilizada `x' OR '1'='1`
+
+### Objetivo
+
+Verificar se o valor informado conseguiria alterar a lógica da operação ou fazer a aplicação ignorar o conteúdo digitado no campo.
+
+### Resultado
+
+A entrada foi tratada como texto normal e foi salva como parte do nome da especialidade. A aplicação não retornou registros indevidos e a entrada não alterou o comportamento esperado da operação.
+
+### Evidência
+
+
+![Teste de alteração da lógica](evidencias/b2-teste-logica1.png)
+
+
+![Teste de alteração da lógica](evidencias/b2-teste-logica2.png)
+
+
+## Teste de tentativa de exclusão da tabela
+
+Entrada utilizada `'); DROP TABLE Tabela_Teste_Injecao; --`
+
+### Objetivo
+
+Verificar se a entrada conseguiria encerrar a operação original e executar uma segunda ação não autorizada. Nesse caso, o resultado esperado de uma aplicação vulnerável seria a exclusão da tabela de apoio.
+
+### Resultado
+
+A entrada foi salva como texto comum. A tabela de apoio continuou existindo e o registro criado antes do teste permaneceu disponível. Portanto, o conteúdo digitado não foi interpretado como um comando de banco de dados.
+
+### Evidência
+
+
+![Teste destrutivo](evidencias/b2-teste-destrutivo1.png)
+
+ 
+![Teste destrutivo](evidencias/b2-teste-destrutivo2.png)
+
+
+## Teste de valor inválido na rota
+
+Também foi testado um valor textual no lugar do identificador numérico utilizado pela rota de edição de especialidades. Valor testado `http://localhost:8080/especialidades/1%20OR%201=1/editar`.
+
+### Objetivo
+
+Verificar se a aplicação aceitaria um valor que não corresponde ao formato esperado para o identificador.
+
+### Resultado
+
+A aplicação rejeitou a requisição e retornou o erro HTTP 400. Nenhuma alteração foi realizada no banco. O valor foi interrompido antes de ser utilizado em uma operação de acesso aos dados.
+
+### Evidência
+
+
+![Teste de rota inválida](evidencias/b2-teste-rota-invalida.png)
+
+
+##  Resumo dos resultados
+
+| Verificação | Resultado |
+| --- | --- |
+| Entrada tentando alterar a lógica | Tratada como texto comum |  
+| Entrada tentando excluir tabela | Tabela de apoio permaneceu intacta |
+| Valor inválido na rota | Requisição rejeitada com erro 400 |
+| Acesso a registros não autorizados | Não ocorreu |
+| Alteração indevida no banco | Não ocorreu |
+| Execução de comando adicional | Não ocorreu |
+
+Com base nos testes realizados, a aplicação resistiu às entradas utilizadas no experimento.
+
+
+## Conferência dos dados após os testes
+
+Após a execução dos testes, foi realizada uma conferência no banco para verificar se os resultados observados na tela correspondiam aos dados realmente armazenados.
+Foram conferidos:
+    - Os nomes registrados durante os testes;
+    - A quantidade de especialidades;
+    - A existência da tabela de apoio;
+    - A permanência do registro criado antes do experimento;
+    - A ausência de alterações indevidas em outras tabelas.
+A quantidade de especialidades após os testes foi de 12 registros. Os valores foram armazenados como texto, sem serem interpretados como comandos. A tabela de apoio permaneceu disponível durante a verificação.
+
+### Evidência
+
+![Conferência dos dados](evidencias/b2-conferencia-banco1.png)
+
+
+![Conferência dos dados](evidencias/b2-conferencia-banco2.png)
+
+
+![Conferência dos dados](evidencias/b2-conferencia-banco3.png)
+
+
+## Limpeza do ambiente de teste
+
+Depois que as verificações foram concluídas, os registros criados durante o experimento foram removidos. A tabela utilizada como apoio também foi excluída. Assim, o banco voltou ao estado anterior ao início dos testes.
+
+### Evidência
+
+
+![Limpeza dos testes](evidencias/b2-limpeza.png)
+
+
+## Proteção das credenciais
+
+As informações utilizadas para acessar o banco não ficam escritas diretamente no código-fonte. Os valores reais são configurados localmente por cada integrante da equipe. No repositório ficam somente as referências e as instruções de configuração.
+
+### Evidência
+
+
+![Configuração sem credenciais](evidencias/b2-configuracao-variaveis1.png)
+
+
+![Configuração sem credenciais](evidencias/b2-configuracao-variaveis2.png)
+
+
+![Configuração sem credenciais](evidencias/b2-configuracao-variaveis3.png)
+
+
+## Arquivos fora do versionamento
+
+Também foi verificado o arquivo .gitignore. As configurações locais da IDE e outros arquivos gerados durante a execução do projeto não são enviados para o Git. Essa medida evita que configurações pessoais ou informações sensíveis sejam compartilhadas por engano.
+
+### Evidência
+
+![Arquivo gitignore](evidencias/b2-gitignore.png)
+
+## Busca por senhas no repositório
+
+Foi realizada uma busca no repositório por termos relacionados a senhas, usuários e credenciais. A busca não encontrou senhas reais armazenadas em arquivos versionados. Foram encontradas apenas referências às variáveis de ambiente e instruções para configuração local.
+
+### Evidência
+
+![Busca por credenciais](evidencias/b2-busca-credenciais.png)
+
+## Conclusão da B2
+
+Os testes realizados indicaram que a aplicação utiliza uma forma adequada de acesso ao banco para as operações analisadas. As entradas utilizadas no experimento não conseguiram alterar a lógica das operações, acessar registros indevidos ou executar comandos adicionais. A tentativa de exclusão da tabela de apoio não teve efeito, e o valor inválido informado na rota foi rejeitado pela aplicação. Também foi verificado que as credenciais do banco são configuradas por variáveis de ambiente e não ficam expostas nos arquivos versionados. Portanto, os testes realizados atenderam aos principais objetivos da B2.
 
 ## B3 — Operação transacional de edição de médico
 
@@ -93,7 +279,7 @@ O resultado informado foi `REPEATABLE-READ`. Os métodos transacionais não decl
 
 Leituras com `FOR UPDATE` são leituras com bloqueio e não equivalem às leituras comuns do snapshot. O resultado acima corresponde à conexão da aplicação e não identifica o isolamento das conexões do Workbench.
 
-## B3 — Experimento de concorrência de 18/10/2026
+## B3 - Experimento de concorrência de 18/10/2026
 
 **Objetivo:** observar a espera por bloqueio e a rejeição da tentativa de cadastrar como enfermeiro um profissional já cadastrado como médico.
 
@@ -156,7 +342,7 @@ WHERE p.id_profissional = 6;
 
 **Interpretação:** o bloqueio do registro base fez a tentativa da sessão B aguardar. Depois da liberação, o trigger rejeitou a especialização incompatível. O experimento não representa duas criações simultâneas de especialização. O ROLLBACK da sessão A encerrou o bloqueio; a demonstração de reversão de alterações multitabela está no teste de edição.
 
-## B3 — Registro do experimento anterior de concorrência
+## B3 - Registro do experimento anterior de concorrência
 
 No experimento anterior, foram utilizadas sessões 10 e 74 e o profissional de teste 32, já cadastrado como médico. A equipe informou `REPEATABLE-READ` nas duas sessões e tabelas InnoDB.
 
@@ -196,23 +382,23 @@ Os estudos foram executados sequencialmente. Antes de cada intervenção, foram 
 | Linhas em Profissional_Saude | 20 |
 
 
-<img width="557" height="326" alt="image" src="https://github.com/user-attachments/assets/ebc3653e-92f8-48bf-a6e3-2b53b37aa12f" />
+![Ambiente e volume de dados](evidencias/versao-mysql-b4.png)
 
-<img width="508" height="323" alt="image" src="https://github.com/user-attachments/assets/facc19f0-6235-4e8a-9088-8b1133eec1be" />
+![Ambiente e volume de dados](evidencias/qtd-consultas-b4.png)
 
-<img width="542" height="323" alt="image" src="https://github.com/user-attachments/assets/91893672-095a-467f-aaa9-d493174cbede" />
+![Ambiente e volume de dados](evidencias/qtd-medicos-b4.png)
 
-<img width="527" height="338" alt="image" src="https://github.com/user-attachments/assets/9be1dff5-6b8b-4f1c-b371-474c669e079c" />
+![Ambiente e volume de dados](evidencias/qtd-prof-b4.png)
 
 
 Índices que já existiam antes da intervenção (importante para entender o ganho dos índices novos).
 
 
-<img width="1093" height="218" alt="image" src="https://github.com/user-attachments/assets/deb4bc16-3291-4bcf-a124-6ea5f1f0a1b4" />
+![Índices existentes](evidencias/idx-consulta-b4.png)
 
-<img width="1173" height="204" alt="image" src="https://github.com/user-attachments/assets/9f21cb83-172c-4475-ac4d-2488fb078cdb" />
+![Índices existentes](evidencias/idx-medico-b4.png)
 
-<img width="1155" height="167" alt="image" src="https://github.com/user-attachments/assets/8e2283c5-f35e-435d-8366-66cdc7049a5c" />
+![Índices existentes](evidencias/idx-prof-b4.png)
 
 
 Observação: a tabela `Consulta` já possui a chave primária e a restrição UNIQUE `(id_medico, data_hora)`, criada para a regra RN16, além do índice criado pelo MySQL para a chave estrangeira de paciente.
@@ -226,7 +412,7 @@ Pergunta de negócio: quais médicos estão cadastrados, com seu CRM, em ordem a
 
 ### Plano antes da intervenção
 
-<img width="1084" height="212" alt="image" src="https://github.com/user-attachments/assets/a0fb78ba-e39b-4b2e-8e6e-18ab9243c4f7" />
+![Consulta 1 antes](evidencias/b4-consulta1-antes1.png)
 
 
 | Tabela | type | key | rows | Extra |
@@ -235,7 +421,7 @@ Pergunta de negócio: quais médicos estão cadastrados, com seu CRM, em ordem a
 | Profissional_Saude | eq_ref | PRIMARY | 1 | NULL |
 
 
-<img width="1374" height="282" alt="image" src="https://github.com/user-attachments/assets/4ab6173b-b423-43d2-9807-2a9cc4380cfd" />
+![Consulta 1 antes](evidencias/b4-consulta1-antes2.png)
 
 
 Antes da intervenção, o plano percorreu o índice uq_medico_crm de Medico e, para cada médico, buscou o registro correspondente em Profissional_Saude pela chave primária. O resultado passou por uma etapa de ordenação por nome. A mediana do tempo observado no nó raiz do plano foi de 0,0813 ms.
@@ -251,7 +437,7 @@ Justificativa das colunas e da ordem: o índice foi criado sobre nome por ser a 
 
 ### Plano depois da intervenção
 
-<img width="1024" height="211" alt="image" src="https://github.com/user-attachments/assets/33239b51-b11e-4be5-aa28-7c9a3d18f239" />
+![Consulta 1 depois](evidencias/b4-consulta1-depois1.png)
 
 
 
@@ -261,7 +447,7 @@ Justificativa das colunas e da ordem: o índice foi criado sobre nome por ser a 
 | Profissional_Saude | eq_ref | PRIMARY | 1 | NULL |
 
 
-<img width="1386" height="274" alt="image" src="https://github.com/user-attachments/assets/631cd0af-3f24-4a61-9615-ddc8001324ba" />
+![Consulta 1 depois](evidencias/b4-consulta1-depois2.png)
 
 
 
@@ -285,7 +471,7 @@ Pergunta de negócio: quais consultas tiveram valor entre R$150,00 e R$200,00?
 ### Plano antes da intervenção
 
 
-<img width="776" height="199" alt="image" src="https://github.com/user-attachments/assets/1ba945ec-5cb8-4f34-8166-eb09064edd5a" />
+![Consulta 3 antes](evidencias/b4-consulta3-antes1.png)
 
 
 
@@ -295,7 +481,7 @@ Pergunta de negócio: quais consultas tiveram valor entre R$150,00 e R$200,00?
 
 
 
-<img width="1180" height="308" alt="image" src="https://github.com/user-attachments/assets/86fbd6fc-d253-4c40-8293-9ab619458ba5" />
+![Consulta 3 antes](evidencias/b4-consulta3-antes2.png)
 
 
 Não existe índice que comece por valor, então o MySQL lê a tabela Consulta inteira , aplica o filtro BETWEEN linha a linha (Using where) e depois ordena as linhas que passaram por data_hora.
@@ -311,7 +497,7 @@ Justificativa das colunas e da ordem: o filtro é uma faixa (`BETWEEN`) em valor
 ### Plano depois da intervenção
 
 
-<img width="964" height="216" alt="image" src="https://github.com/user-attachments/assets/e4f81b4e-eb49-49e0-b270-047942482d18" />
+![Consulta 3 depois](evidencias/b4-consulta3-depois1.png)
 
 
 
@@ -321,7 +507,7 @@ Justificativa das colunas e da ordem: o filtro é uma faixa (`BETWEEN`) em valor
 
 
 
-<img width="1112" height="258" alt="image" src="https://github.com/user-attachments/assets/67e7fd77-afb6-4e01-a9f2-d0d40291a83c" />
+![Consulta 3 depois](evidencias/b4-consulta3-depois2.png)
 
 
 
@@ -347,7 +533,7 @@ Pergunta de negócio: qual o faturamento total gerado por cada médico?
 
 ### Plano antes da intervenção
 
-<img width="1201" height="272" alt="image" src="https://github.com/user-attachments/assets/677a01c4-898a-4cb2-a536-dea6e04a5354" />
+![Consulta 9 antes](evidencias/b4-consulta9-antes1.png)
 
 
 | Tabela | type | key | rows | Extra |
@@ -357,7 +543,7 @@ Pergunta de negócio: qual o faturamento total gerado por cada médico?
 | Consulta | ref | uq_medico_data_hora | 4 | NULL |
 
 
-<img width="586" height="260" alt="image" src="https://github.com/user-attachments/assets/b02bdf1d-7a1a-48a0-bb92-ec89478338e0" />
+![Consulta 9 antes](evidencias/b4-consulta9-antes2.png)
 
 
 O plano inicia pela leitura de Medico pelo índice fk_medico_supervisor. Para cada médico, busca o profissional correspondente pela chave primária e acessa suas consultas pelo índice uq_medico_data_hora. Como esse índice não contém valor, é necessário acessar os registros de Consulta para obter a coluna utilizada na soma. O plano também indica tabela temporária e ordenação para produzir o resultado agregado.
@@ -373,7 +559,7 @@ Justificativa das colunas e da ordem: a junção e o agrupamento são por médic
 ### Plano depois da intervenção
 
 
-<img width="1302" height="318" alt="image" src="https://github.com/user-attachments/assets/4ac3ab14-7523-4440-88fb-d1e4a440cf2a" />
+![Consulta 9 depois](evidencias/b4-consulta9-depois1.png)
 
 
 | Tabela | type | key | rows | Extra |
@@ -383,7 +569,7 @@ Justificativa das colunas e da ordem: a junção e o agrupamento são por médic
 | Consulta | ref | idx_consulta_medico_valor | 4 | Using index |
 
 
-<img width="1357" height="334" alt="image" src="https://github.com/user-attachments/assets/e69217d1-c8d3-413e-a588-9d4a29290b92" />
+![Consulta 9 depois](evidencias/b4-consulta9-depois2.png)
 
 
 Comparação de tempo (volume da tabela Consulta: 60 registros; volume da tabela Medico: 14 registros.)
